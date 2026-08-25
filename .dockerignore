@@ -16,7 +16,7 @@ __pycache__/
 venv/
 env/
 ENV/
-uv.lock
+
 
 # Output files
 output_audio/
@@ -50,6 +50,7 @@ Thumbs.db
 # Audio files (except samples)
 *.wav
 !sample/*.wav
+outputs/
 
 # Temporary files
 *.tmp

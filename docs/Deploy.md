@@ -6,6 +6,7 @@
 - [Quick Start Guide (Dev)](#quick-start-guide-dev)
 - [Production Deployment](#production-deployment)
 - [Production Deployment Workflow](#production-deployment-workflow)
+- [Remote Server Deployment (One-Command)](#remote-server-deployment-one-command)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 
@@ -27,12 +28,11 @@ The Development environment is designed to allow you to edit code on your host m
 
 Run the following command to start the Web UI. You can also open another terminal to `exec` into the container.
 
-```bash
-# CPU
-docker compose --profile cpu up
+> **Note:** Docker deployment currently supports **GPU only**. For CPU usage, please install from source (see main README).
 
-# GPU
-docker compose --profile gpu up
+```bash
+# GPU only
+docker compose -f docker/docker-compose.yml --profile gpu up
 ```
 
 Access: **http://localhost:7860**
@@ -42,12 +42,10 @@ Access: **http://localhost:7860**
 If you want to run scripts manually in the running container:
 
 ```bash
-docker compose exec cpu bash
-# or
 docker compose exec gpu bash
 ```
 
-In the shell, you can run: `uv run main.py`, `uv run examples/infer_long_text.py`, ...
+In the shell, you can run: `uv run examples/main.py`, `uv run examples/infer_long_text.py`, ...
 
 The current directory code is mounted to `/workspace`, so when you edit code outside, it updates immediately in the container.
 
@@ -55,13 +53,13 @@ The current directory code is mounted to `/workspace`, so when you edit code out
 
 ## 🚢 Production Deployment
 
-The Production environment uses `docker-compose.prod.yml`. Source code will be **copied into the image** (no volume mount), ensuring stability and portability. By default, these services will **automatically run the Web UI**.
+The Production environment uses `docker/docker-compose.prod.yml`. Source code will be **copied into the image** (no volume mount), ensuring stability and portability. By default, these services will **automatically run the Web UI**.
 
 **Standard workflow:**
 
-1. **Build Image**: Use `docker-compose.build.yml`.
+1. **Build Image**: Use `docker/docker-compose.build.yml`.
 2. **Push to Registry**: Push the image to Docker Hub / Private Registry.
-3. **Deploy**: On the server, use `docker-compose.prod.yml` to pull and run.
+3. **Deploy**: On the server, use `docker/docker-compose.prod.yml` to pull and run.
 
 ---
 
@@ -80,28 +78,63 @@ Run the build command:
 
 ```bash
 # Build both (if needed) or specify service
-docker compose -f docker-compose.build.yml build gpu
+docker compose -f docker/docker-compose.build.yml build gpu
 ```
 
 ### 2. Push Image
 
 ```bash
-docker compose -f docker-compose.build.yml push gpu
+docker compose -f docker/docker-compose.build.yml push gpu
 ```
 
 ### 3. Run on Production
 
-On the production server, you only need the `docker-compose.prod.yml` file and the `.env` file.
+On the production server, you only need the `docker/docker-compose.prod.yml` file and the `.env` file.
 
 **Startup:**
 
 ```bash
 # Pull the latest image
-docker compose -f docker-compose.prod.yml --profile gpu pull
+docker compose -f docker/docker-compose.prod.yml --profile gpu pull
 
 # Start the service
-docker compose -f docker-compose.prod.yml --profile gpu up -d
+docker compose -f docker/docker-compose.prod.yml --profile gpu up -d
 ```
+
+---
+
+## 🌐 Remote Server Deployment (One-Command) <a name="remote-server-deployment-one-command"></a>
+
+To enable the "One-Command" deployment experience for your users (where they just run `docker run ...` and it works purely from the cloud), you must build and push the special server image to Docker Hub.
+
+### 1. Build & Push Image
+
+We have prepared Makefile targets for this specific purpose:
+
+```bash
+# 1. Login to Docker Hub (if you haven't)
+docker login
+
+# 2. Build the server image
+make docker-build-serve
+
+# 3. Push to Docker Hub
+make docker-push-serve
+```
+
+*Note: The image is tagged `pnnbao97/vieneu-tts:serve` by default. Update the Makefile if you use a different registry.*
+
+### 2. User Experience
+
+Once pushed, ANY user with an NVIDIA GPU can run your server with a single command (no repo cloning needed):
+
+```bash
+docker run --runtime nvidia --gpus all \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  pnnbao97/vieneu-tts:serve
+```
+
+This image is optimized purely for serving the API (minimal size, pre-installed dependencies).
 
 ---
 
@@ -113,10 +146,8 @@ We use Docker Compose Profiles to manage variants:
 
 | Profile | Environment | File                      | Description                          |
 | ------- | ----------- | ------------------------- | ------------------------------------ |
-| `cpu`   | **Dev**     | `docker-compose.yml`      | Dev mode (Mount code + Web UI)       |
-| `gpu`   | **Dev**     | `docker-compose.yml`      | Dev mode (Mount code + Web UI + GPU) |
-| `cpu`   | **Prod**    | `docker-compose.prod.yml` | Run mode (Baked code + Web UI)       |
-| `gpu`   | **Prod**    | `docker-compose.prod.yml` | Run mode (Baked code + Web UI + GPU) |
+| `gpu`   | **Dev**     | `docker/docker-compose.yml`      | Dev mode (Mount code + Web UI + GPU) |
+| `gpu`   | **Prod**    | `docker/docker-compose.prod.yml` | Run mode (Baked code + Web UI + GPU) |
 
 ### Environment Variables
 
